@@ -115,8 +115,8 @@ const opt1text = $('#opt1text'), opt2text = $('#opt2text'), opt3text = $('#opt3t
 
 // ======== RobotExpressive morph targets (facial expressions) ========
 let aggMesh = null, aggMorphDict = null, aggMorph = null;
-npcAgg.addEventListener('model-loaded', () => {
-  const mesh = npcAgg.getObject3D('mesh');
+npcAggA.addEventListener('model-loaded', () => {
+  const mesh = npcAggA.getObject3D('mesh');
   if (!mesh) return;
   mesh.traverse(node => {
     if (node.morphTargetInfluences && node.morphTargetDictionary) {
@@ -155,20 +155,20 @@ function setAggExpression(kind='neutral', strength=0.7) {
 
 function playAggClip(name, dur=900){
   // if the clip doesn't exist, fallback to manual head/arm anims
-  npcAgg.setAttribute('animation-mixer', `clip: ${name}; loop: once; clampWhenFinished: true`);
+  npcAggA.setAttribute('animation-mixer', `clip: ${name}; loop: once; clampWhenFinished: true`);
   // lightweight manual fallback gesture:
   if (name === 'No') {
-    npcAgg.setAttribute('animation__shake', 'property: rotation; to: 0 175 0; dir: alternate; dur: 120; loop: 3; easing: easeOutQuad');
-    setTimeout(()=> npcAgg.removeAttribute('animation__shake'), dur);
+    npcAggA.setAttribute('animation__shake', 'property: rotation; to: 0 175 0; dir: alternate; dur: 120; loop: 3; easing: easeOutQuad');
+    setTimeout(()=> npcAggA.removeAttribute('animation__shake'), dur);
   } else if (name === 'Yes') {
-    npcAgg.setAttribute('animation__nod', 'property: rotation; to: -6 165 0; dir: alternate; dur: 140; loop: 3; easing: easeInOutQuad');
-    setTimeout(()=> npcAgg.removeAttribute('animation__nod'), dur);
+    npcAggA.setAttribute('animation__nod', 'property: rotation; to: -6 165 0; dir: alternate; dur: 140; loop: 3; easing: easeInOutQuad');
+    setTimeout(()=> npcAggA.removeAttribute('animation__nod'), dur);
   }
-  setTimeout(()=> npcAgg.setAttribute('animation-mixer', 'clip: Idle; loop: repeat'), dur+150);
+  setTimeout(()=> npcAggA.setAttribute('animation-mixer', 'clip: Idle; loop: repeat'), dur+150);
 }
 
 function moveAggTo(x=-0.8, z=-2.2, dur=400){
-  npcAgg.setAttribute('animation__move', `property: position; to: ${x} 0 ${z}; dur:${dur}; easing:easeOutQuad`);
+  npcAggA.setAttribute('animation__move', `property: position; to: ${x} 0 ${z}; dur:${dur}; easing:easeOutQuad`);
 }
 
 function driverGlance(){
@@ -272,7 +272,7 @@ function adjustMood(branchKey){
 function reactBranch(branchKey){
   if (branchKey==='ESCALATE'){ playAggClip('No', 900); driverGlance(); }
   if (branchKey==='STRONG'){   playAggClip('Yes', 900); }
-  if (branchKey==='NEUTRAL'){  /* tiny shrug via rotation */ npcAgg.setAttribute('animation__shrug','property: rotation; to: 0 170 0; dir: alternate; dur: 220; loop: 2; easing: easeInOutQuad'); setTimeout(()=> npcAgg.removeAttribute('animation__shrug'), 600); }
+  if (branchKey==='NEUTRAL'){  /* tiny shrug via rotation */ npcAggA.setAttribute('animation__shrug','property: rotation; to: 0 170 0; dir: alternate; dur: 220; loop: 2; easing: easeInOutQuad'); setTimeout(()=> npcAggA.removeAttribute('animation__shrug'), 600); }
 }
 
 // -------- UI helpers --------
