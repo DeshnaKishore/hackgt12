@@ -95,5 +95,92 @@
     <a-entity id="feedbackText" text="value: ; wrapCount: 40;" position="0 0 0.1"></a-entity>
   </a-plane>
   </a-scene>
+
+  <script>
+const dialogue = [
+  { who:"Narrator", line:"An elementary school class is on a field trip at the local history museum. A student becomes frustrated because other students in the class were able to see exhibits that they weren’t able to. Others begin to tease the student over this, and they become agitated." },
+  { who:"A", line:"It’s not fair! Everyone else got to see the dinosaur exhibit, and I didn’t!" },
+  { who:"B", line:"Maybe you were too slow! You always miss stuff." },
+  { who:"A", line:"Stop it! I didn’t miss it on purpose!" },
+  { who:"C", line:"Yeah, maybe if you paid attention for once!" },
+];
+
+const options = [
+  { label:"Option 1: Direct scolding", outcome:[
+    {who:"A", line:"Why are you yelling at me?? IT'S NOT MY FAULT."},
+    {who:"B", line:"Ooohhh, now you're in trouble..."},
+  ], feedback:"Scolding escalated things. In real life, short calm boundaries work better."},
+
+  { label:"Option 2: Step aside & empathize", outcome:[
+    {who:"A", line:"I just wanted to see it like everyone else. Can we pass through the exhibits quickly on our way back?"},
+  ], feedback:"Great choice. Empathy plus redirecting the energy de-escalates."},
+
+  { label:"Option 3: Ignore", outcome:[
+    {who:"B", line:"Yo crybaby, stop whining."},
+    {who:"C", line:"Even the teacher doesn't care about you."},
+    {who:"A", line:"Leave me alone! I said stop!"},
+  ], feedback:"Ignoring leaves the student unprotected. Next time, intervene calmly but clearly."},
+];
+
+const dlgBox = document.querySelector('#dialogueBox');
+const optsUI = document.querySelector('#options');
+const opt1 = document.querySelector('#opt1text');
+const opt2 = document.querySelector('#opt2text');
+const opt3 = document.querySelector('#opt3text');
+const feedbackBox = document.querySelector('#feedback');
+const feedbackText = document.querySelector('#feedbackText');
+
+let step=0;
+
+function showDialogue(line){
+  dlgBox.setAttribute('text','value', line);
+}
+
+function nextDialogue(){
+  if(step < dialogue.length){
+    showDialogue(dialogue[step].who+": "+dialogue[step].line);
+    step++;
+    setTimeout(nextDialogue, 3500); // auto advance every 3.5s
+  }else{
+    showOptions();
+  }
+}
+
+function showOptions(){
+  optsUI.setAttribute('visible','true');
+  opt1.setAttribute('text','value', options[0].label);
+  opt2.setAttribute('text','value', options[1].label);
+  opt3.setAttribute('text','value', options[2].label);
+}
+
+function pickOption(i){
+  optsUI.setAttribute('visible','false');
+  dlgBox.setAttribute('text','value','');
+  let seq = options[i].outcome;
+  let idx=0;
+  function runOutcome(){
+    if(idx < seq.length){
+      showDialogue(seq[idx].who+": "+seq[idx].line);
+      idx++;
+      setTimeout(runOutcome, 3500);
+    }else{
+      showFeedback(options[i].feedback);
+    }
+  }
+  runOutcome();
+}
+
+function showFeedback(msg){
+  dlgBox.setAttribute('text','value','');
+  feedbackBox.setAttribute('visible','true');
+  feedbackText.setAttribute('text','value',msg);
+}
+
+document.querySelector('#opt1').addEventListener('click', ()=>pickOption(0));
+document.querySelector('#opt2').addEventListener('click', ()=>pickOption(1));
+document.querySelector('#opt3').addEventListener('click', ()=>pickOption(2));
+
+document.addEventListener('DOMContentLoaded', ()=>setTimeout(nextDialogue, 1000));
+</script>
 </body>
 </html>
