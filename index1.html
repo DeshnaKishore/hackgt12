@@ -1,600 +1,337 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Bystander Coach VR</title>
-  <meta name="description" content="VR training simulation for bystander intervention.">
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+  <title>SteadyStateVR</title>
+
+  <!-- A-Frame core -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  
+  <!-- Extras: animation mixer + nav helpers -->
+  <script src="https://cdn.jsdelivr.net/gh/n5ro/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+  <!-- Look-at so NPC tracks the camera a bit -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+  <!-- (Optional) STT polyfill for desktop; Quest usually lacks STT -->
+  <script src="https://cdn.jsdelivr.net/npm/speech-recognition-polyfill@0.1.4/dist/speech-recognition.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
   <style>
-    /* Simple CSS for the 2D overlay UI (mic button) */
-    body { margin: 0; }
-    #mic-ui {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      z-index: 1000;
-      background-color: rgba(0, 0, 0, 0.7);
-      padding: 10px;
-      border-radius: 8px;
-      font-family: sans-serif;
-      color: white;
-    }
-    #mic-ui button {
-      padding: 8px 12px;
-      border: none;
-      background-color: #3f51b5;
-      color: white;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #mic-ui button:disabled {
-      background-color: #555;
-      cursor: not-allowed;
-    }
-    /* Hidden canvas for PNG export */
-    #feedbackCanvas {
-      display: none;
-    }
+    /* Minimal safety styling if style.css is empty */
+    #loadingScreen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000a;color:#e5f3ff;font:16px/1.4 system-ui,Segoe UI,Roboto,sans-serif;z-index:2}
+    .hud-left{position:fixed;left:12px;bottom:12px;display:flex;gap:8px;flex-direction:column;z-index:3}
+    .hud-top{position:fixed;top:12px;left:50%;transform:translateX(-50%);color:#dbeafe;background:#0b1222cc;padding:.5rem .75rem;border-radius:.5rem;z-index:3;font-size:.9rem}
+    .btn2d{background:#0b2545;color:#e6f1ff;border:1px solid #18324d;padding:.5rem .75rem;border-radius:.5rem}
+    .status{color:#9fb6d1}
   </style>
 </head>
-
 <body>
-  <canvas id="feedbackCanvas"></canvas>
-  
-  <div id="mic-ui">
-    <button id="enableMicButton">Enable Mic</button>
-    <p id="micStatus" style="font-size: 12px; margin-top: 5px;">Mic access required for voice input.</p>
+  <!-- HUD -->
+  <div id="loadingScreen">
+    <div>
+      <div style="font-size:20px;margin-bottom:.25rem">Loading SteadyStateVR</div>
+      <div class="pulse" style="opacity:.8">Please wait…</div>
+    </div>
   </div>
 
-  <a-scene webxr="optionalFeatures: true;">
-    
-    <a-assets></a-assets>
+  <div class="hud-left">
+    <button id="micPermission" class="btn2d">Enable Microphone</button>
+    <button id="speakNow" class="btn2d" disabled>Speak Now (1s)</button>
+    <div id="micStatus" class="status">Microphone: Disabled</div>
+  </div>
 
-    <a-sky color="#ECEFF1"></a-sky>
-    <a-light type="ambient" color="#888"></a-light>
-    <a-light type="directional" position="-1 1 2" intensity="0.6"></a-light>
-    <a-plane position="0 0 -4" rotation="-90 0 0" width="30" height="30" color="#78909C" shadow></a-plane>
+  <div id="hint" class="hud-top">
+    Quest: point with controller ray & pull trigger. Desktop: drag to look, WASD to move.<br/>
+    Voice: <b>Enable Microphone</b> → <b>Speak Now</b>. Otherwise, choose an on-panel option.
+  </div>
 
-    <a-entity id="player-rig" position="0 1.6 0">
-      <a-camera id="camera">
-        <a-cursor
-          raycaster="objects: .clickable"
-          fuse="false"
+  <!-- Offscreen canvas for saving feedback card as PNG -->
+  <canvas id="exportCanvas" width="880" height="560" style="display:none"></canvas>
+
+  <a-scene
+    background="color: #0b0f17"
+    webxr="requiredFeatures: local-floor; optionalFeatures: hand-tracking"
+    loading-screen="enabled: false"
+    vr-mode-ui="enabled: true"
+  >
+    <!-- Camera rig + cursor + controller rays -->
+    <a-entity id="rig" position="0 1.6 2.2">
+      <a-entity id="camera" camera look-controls wasd-controls="acceleration: 10">
+        <a-entity
+          id="gazeCursor"
+          cursor="fuse:false"
           position="0 0 -1"
           geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.015"
-          material="color: #FFF; shader: flat">
-        </a-cursor>
-      </a-camera>
-      <a-entity id="right-hand" laser-controls="hand: right" raycaster="objects: .clickable; far: 5;"></a-entity>
-      <a-entity id="left-hand" laser-controls="hand: left" raycaster="objects: .clickable; far: 5;"></a-entity>
+          material="color: #e2e8f0; shader: flat; opacity: .85"
+          raycaster="objects: .clickable"
+        ></a-entity>
+      </a-entity>
+      <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .clickable; far: 9;"></a-entity>
+      <a-entity id="leftHand"  laser-controls="hand: left"  raycaster="objects: .clickable; far: 9;"></a-entity>
     </a-entity>
 
-    <a-sphere id="hover-dot" radius="0.01" color="#FFEB3B" shader="flat" visible="false"></a-sphere>
+    <!-- Lighting + floor -->
+    <a-entity light="type: hemisphere; color: #fff; groundColor: #223; intensity: 1.0"></a-entity>
+    <a-entity geometry="primitive: plane; width: 36; height: 36" rotation="-90 0 0"
+              material="color: #101827; roughness: 1"></a-entity>
 
-    <a-entity id="main-panel" position="0 1.2 -1.2">
-      <a-plane width="1.2" height="1" color="#263238" side="double"></a-plane>
+    <!-- ==== NPCs FOR THE SCHOOL MUSEUM SCENE ==== -->
+    <!-- Student A (frustrated) -->
+    <a-entity id="studentA"
+      gltf-model="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/RobotExpressive/glTF-Binary/RobotExpressive.glb"
+      position="-1.2 0 -3.4" rotation="0 30 0" scale="0.75 0.75 0.75"
+      animation-mixer="clip: Idle; loop: repeat"
+      look-at="#camera">
+      <a-entity position="0 1.4 0" text="value: Student A; color:#c7d2fe; align:center; width:2"></a-entity>
+    </a-entity>
 
-      <a-text id="subtitle-text" value="Loading scenario..."
-              align="center" color="#FFFFFF" width="1.1" wrap-count="35"
-              position="0 0.35 0.01"></a-text>
+    <!-- Student B (teasing) -->
+    <a-entity id="studentB"
+      gltf-model="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb"
+      position="0 0 -3.8" rotation="0 0 0" scale="0.95 0.95 0.95"
+      animation-mixer="clip: idle; loop: repeat"
+      look-at="#camera">
+      <a-entity position="0 1.6 0" text="value: Student B; color:#c7d2fe; align:center; width:2"></a-entity>
+    </a-entity>
 
-      <a-text id="transcript-text" value="Your response will appear here."
-              align="left" color="#B0BEC5" width="1" wrap-count="50"
-              position="-0.5 0.15 0.01" font-size="0.05"></a-text>
+    <!-- Student C (joining in) -->
+    <a-entity id="studentC"
+      gltf-model="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb"
+      position="1.2 0 -3.6" rotation="0 -20 0" scale="0.04 0.04 0.04"
+      animation-mixer="clip: Run; loop: repeat"
+      look-at="#camera">
+      <a-entity position="0 7.5 0" text="value: Student C; color:#c7d2fe; align:center; width:2"></a-entity>
+    </a-entity>
 
-      <a-entity id="btn-direct" class="clickable button" position="0 -0.05 0.01">
-        <a-plane width="0.8" height="0.15" color="#00796B"></a-plane>
-        <a-text value="Direct Approach" align="center" color="#FFFFFF" width="2"></a-text>
+    <!-- Teacher -->
+    <a-entity id="teacher"
+      gltf-model="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb"
+      position="0 0 -2.4" rotation="0 180 0" scale="28 28 28"
+      look-at="#camera">
+      <a-entity position="0 0.25 0" text="value: Teacher; color:#a7f3d0; align:center; width:2"></a-entity>
+    </a-entity>
+
+    <!-- Hover dot for ray hits -->
+    <a-entity id="hoverDot" geometry="primitive: sphere; radius: 0.01"
+              material="color: #93c5fd" visible="false"></a-entity>
+
+    <!-- ==== UI PANEL (Center) ==== -->
+    <a-entity id="uiPanel" position="0 1.12 -1.1">
+      <a-entity geometry="primitive: plane; width: 1.52; height: 1.02"
+                material="color: #071426; opacity: .96; side: double"></a-entity>
+
+      <a-entity id="subtitle" position="-0.72 0.36 0.01"
+                text="value: ; color: #e7edf7; width: 1.38; wrapCount: 44; align: left"></a-entity>
+      <a-entity id="youSaid" position="-0.72 0.19 0.01"
+                text="value: ; color: #9fb6d1; width: 1.38; wrapCount: 44; align: left"></a-entity>
+
+      <!-- Choices -->
+      <a-entity id="opt1" class="clickable option"
+                geometry="primitive: plane; width: 1.38; height: 0.12"
+                position="0 -0.02 0.01" material="color: #0d203a">
+        <a-entity id="opt1text" position="-0.68 0 0"
+          text="value: ; color: #e5efff; width: 1.28; wrapCount: 40; align: left"></a-entity>
       </a-entity>
-      <a-entity id="btn-distract" class="clickable button" position="0 -0.25 0.01">
-        <a-plane width="0.8" height="0.15" color="#512DA8"></a-plane>
-        <a-text value="Distract" align="center" color="#FFFFFF" width="2"></a-text>
+      <a-entity id="opt2" class="clickable option"
+                geometry="primitive: plane; width: 1.38; height: 0.12"
+                position="0 -0.22 0.01" material="color: #0c1b31">
+        <a-entity id="opt2text" position="-0.68 0 0"
+          text="value: ; color: #dbeafe; width: 1.28; wrapCount: 40; align: left"></a-entity>
       </a-entity>
-      <a-entity id="btn-delegate" class="clickable button" position="0 -0.45 0.01">
-        <a-plane width="0.8" height="0.15" color="#F57C00"></a-plane>
-        <a-text value="Delegate" align="center" color="#FFFFFF" width="2"></a-text>
-      </a-entity>
-
-      <a-entity id="btn-speak" class="clickable button" position="0.45 0.1 0.01">
-        <a-circle radius="0.07" color="#C62828"></a-circle>
-        <a-text value="Speak Now" align="center" color="#FFFFFF" width="0.5" position="0 -0.1 0"></a-text>
+      <a-entity id="opt3" class="clickable option"
+                geometry="primitive: plane; width: 1.38; height: 0.12"
+                position="0 -0.42 0.01" material="color: #0a1627">
+        <a-entity id="opt3text" position="-0.68 0 0"
+          text="value: ; color: #c7d2fe; width: 1.28; wrapCount: 40; align: left"></a-entity>
       </a-entity>
     </a-entity>
 
-    <a-entity id="feedback-card" position="0 1.2 -1.1" visible="false">
-      <a-plane width="1.1" height="1.2" color="#37474F" side="double"></a-plane>
-      <a-text value="Feedback Report" align="center" color="#FFFFFF" width="2" position="0 0.5 0.01"></a-text>
-      
-      <a-text id="feedback-line-1" value="[Your Last Response]" align="left" color="#CFD8DC" width="1" position="-0.5 0.35 0.01"></a-text>
-      <a-text id="feedback-line-2" value="[Detected Tone]" align="left" color="#CFD8DC" width="1" position="-0.5 0.25 0.01"></a-text>
-      
-      <a-text id="feedback-good" value="[What you did well]" align="left" color="#A5D6A7" width="1" wrap-count="45" position="-0.5 0.1 0.01"></a-text>
-      <a-text id="feedback-suggestion" value="[Try this next time]" align="left" color="#FFCC80" width="1" wrap-count="45" position="-0.5 -0.1 0.01"></a-text>
-      
-      <a-entity id="btn-save-card" class="clickable button" position="-0.25 -0.45 0.01">
-        <a-plane width="0.4" height="0.15" color="#1E88E5"></a-plane>
-        <a-text value="Save Card" align="center" color="#FFFFFF" width="2"></a-text>
-      </a-entity>
-      <a-entity id="btn-replay" class="clickable button" position="0.25 -0.45 0.01">
-        <a-plane width="0.4" height="0.15" color="#43A047"></a-plane>
-        <a-text value="Replay" align="center" color="#FFFFFF" width="2"></a-text>
+    <!-- ==== FEEDBACK / NARRATION CARD ==== -->
+    <a-entity id="feedbackCard" visible="false" position="0 1.12 -0.95" scale="0 0 0">
+      <a-entity geometry="primitive: plane; width: 1.52; height: 1.02"
+                material="color: #00152b; opacity: .98; side: double"></a-entity>
+      <a-entity id="cardTitle" position="-0.72 0.34 0.01"
+                text="value: ; color: #a7f3d0; width: 1.38; wrapCount: 44; align: left"></a-entity>
+      <a-entity id="cardBody" position="-0.72 0.06 0.01"
+                text="value: ; color: #e7edf7; width: 1.38; wrapCount: 44; align: left"></a-entity>
+      <a-entity id="btnReplay" class="clickable"
+                geometry="primitive: plane; width: 0.62; height: 0.12"
+                position="0 -0.34 0.01" material="color: #0b2b33">
+        <a-entity text="value: Replay; color:#d1fae5; width: 0.56; align: center"></a-entity>
       </a-entity>
     </a-entity>
-    
-  </a-scene>
 
-  <script>
-    // Wait until the DOM and A-Frame scene are fully loaded
-    window.addEventListener('DOMContentLoaded', () => {
+    <!-- ======= Inline Logic for this scenario only ======= -->
+    <script>
+      // Utility: set text quickly
+      const T = (sel, value) => document.querySelector(sel).setAttribute('text', 'value', value);
 
-      // --- 1. SCENARIO DATA ---
-      // This JSON object contains the entire branching narrative for the training.
-      const SCENARIO_BUS_V1 = {
-        turn1: {
-          npc_line: "Two people are arguing on a bus. One person says loudly, 'Why are you even in this country? Go back where you came from!'",
-          good_keywords: ["stop", "not okay", "leave them alone", "that's enough", "help", "security"],
-          bad_keywords: ["shut up", "idiot", "fight", "stupid"],
-          branches: {
-            STRONG: { npc_react: "The aggressor looks at you, surprised. 'What did you say?'", outcome: 'stall' },
-            NEUTRAL: { npc_react: "They ignore you and continue yelling.", outcome: 'stall' },
-            ESCALATE: { npc_react: "The aggressor turns on you. 'Mind your own business!'", outcome: 'escalate' }
+      const loading = document.getElementById('loadingScreen');
+      window.addEventListener('load', () => {
+        setTimeout(() => loading.style.display = 'none', 300); // small fade-out
+      });
+
+      // SCRIPTED DIALOGUE (first ~30s)
+      const scriptedLines = [
+        { who: "Student A (frustrated)", line: "It’s not fair! Everyone else got to see the dinosaur exhibit, and I didn’t!" },
+        { who: "Student B (teasing)",     line: "Maybe you were too slow! You always miss stuff." },
+        { who: "Student A",               line: "Stop it! I didn’t miss it on purpose!" },
+        { who: "Student C (joining in)",  line: "Yeah, maybe if you paid attention for once!" }
+      ];
+
+      // Choices (exactly as requested)
+      const choices = [
+        { id: "opt1", text: "Yell at the frustrated student", outcome: {
+            title: "Outcome: Escalation",
+            body: "After you yell at the student, they become even more frustrated and begin lashing out at other students and back at you."
           }
         },
-        turn2: {
-          npc_line: "The situation is tense. The target looks scared. What do you do now?",
-          good_keywords: ["calm", "let's talk", "security", "driver", "help", "separate"],
-          bad_keywords: ["fight", "punch", "moron"],
-          branches: {
-            STRONG: { npc_react: "The aggressor hesitates, seeing you're serious. They back down.", outcome: 'cooling' },
-            NEUTRAL: { npc_react: "The argument continues, but doesn't get worse.", outcome: 'stall' },
-            ESCALATE: { npc_react: "The situation gets more heated and dangerous.", outcome: 'escalate' }
+        { id: "opt2", text: "Separate the student from the class", outcome: {
+            title: "Outcome: De-escalation",
+            body: "You separate the student from the class. The student feels more comfortable in a safer environment with just the teacher."
+          }
+        },
+        { id: "opt3", text: "Ignore the situation", outcome: {
+            title: "Outcome: Neglect",
+            body: "You ignore the situation. Others continue to tease and the student becomes more agitated and lashes out at the students."
           }
         }
-      };
-      
-      // --- 2. STATE MANAGEMENT ---
-      let currentTurn = 1;
-      let gameActive = true;
-      let finalOutcome = null; // Stores the results for the feedback card
-      
-      // Audio processing variables
-      let audioContext, analyser, microphoneStream, dataArray;
-      let isMicEnabled = false;
+      ];
 
-      // Web Speech API for speech-to-text
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      let recognition = null;
-      if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.lang = 'en-US';
-        recognition.interimResults = false;
-      }
-
-      // --- 3. ELEMENT REFERENCES ---
-      // Caching references to DOM/A-Frame elements for performance.
-      const subtitleTextEl = document.querySelector('#subtitle-text');
-      const transcriptTextEl = document.querySelector('#transcript-text');
-      const mainPanelEl = document.querySelector('#main-panel');
-      const feedbackCardEl = document.querySelector('#feedback-card');
-      const hoverDotEl = document.querySelector('#hover-dot');
-      
-      // --- 4. CORE LOGIC ---
-
-      /**
-       * Initializes the scenario or resets it to the first turn.
-       */
-      function startScenario() {
-        currentTurn = 1;
-        gameActive = true;
-        finalOutcome = null;
-        mainPanelEl.setAttribute('visible', 'true');
-        feedbackCardEl.setAttribute('visible', 'false');
-        transcriptTextEl.setAttribute('value', 'Choose an option or use your voice.');
-        startTurn(1);
-      }
-
-      /**
-       * Updates the UI to reflect the current turn of the scenario.
-       * @param {number} turnNumber - The turn to display (1 or 2).
-       */
-      function startTurn(turnNumber) {
-        const turnData = SCENARIO_BUS_V1[`turn${turnNumber}`];
-        if (turnData) {
-          subtitleTextEl.setAttribute('value', turnData.npc_line);
+      // Narration segments (~45s + 45s)
+      const narrationBlocks = [
+        {
+          title: "Zooming out of Quest Pro",
+          body:
+            "“This is what you’re being trained to handle when you use our innovative de-escalation VR tool, SteadyStateVR.”\n\n" +
+            "[Other situations play in silence]\n\n" +
+            "“Inspired by our professional lives (going through countless minutes of harassment trainings for new hires), " +
+            "we aimed to create an interactive approach to the dilemma plaguing every new hire: boring, long, often outdated, and seldom entertaining training videos.”"
+        },
+        {
+          title: "How SteadyStateVR Works",
+          body:
+            "“In each of these simulated situations, you are placed in escalating situations and choices are given to test your skills, challenge your judgement, and interact with your environment in real time.”\n\n" +
+            "“After bits of dialogue displaying conflict, choices will pop up in the world, prompting you to respond to the situation logically or illogically, if you choose to do so. " +
+            "Your responses will be judged with a cutting-edge AI framework that provides you with personalized feedback helping you gauge whether you improved the situation or added fuel to the fire.”\n\n" +
+            "“You name it—peer-pressure, theft, annoying children. Conflict resolution is a life-saving skill. " +
+            "Using SteadyState will bring you to a calm medium where conflict resolution is just another skill in your toolbox.”"
         }
-      }
+      ];
 
-      /**
-       * Processes the player's choice (from a button or voice) and advances the scenario.
-       * @param {string} playerText - The text from the player's choice or transcript.
-       * @param {string} tone - The detected tone ('CALM', 'ASSERTIVE', 'AGGRESSIVE').
-       */
-      function processPlayerChoice(playerText, tone) {
-        if (!gameActive) return;
+      const subtitle = document.getElementById('subtitle');
+      const youSaid = document.getElementById('youSaid');
+      const feedbackCard = document.getElementById('feedbackCard');
+      const cardTitle = document.getElementById('cardTitle');
+      const cardBody = document.getElementById('cardBody');
+      const btnReplay = document.getElementById('btnReplay');
 
-        // Display player's action
-        transcriptTextEl.setAttribute('value', `You said: "${playerText}"\nTone: ${tone}`);
+      // Fill in choice text
+      T('#opt1text', choices[0].text);
+      T('#opt2text', choices[1].text);
+      T('#opt3text', choices[2].text);
 
-        const turnData = SCENARIO_BUS_V1[`turn${currentTurn}`];
-        let branchKey = 'NEUTRAL'; // Default branch
+      // Prevent overlaps: NPCs are far back and UI is close; also no subtitles at bottom
+      // Step through scripted lines, then unlock choices
+      let lineIndex = 0;
+      let showingChoices = false;
 
-        // Scoring logic
-        const textLower = playerText.toLowerCase();
-        const hasGoodKeyword = turnData.good_keywords.some(kw => textLower.includes(kw));
-        const hasBadKeyword = turnData.bad_keywords.some(kw => textLower.includes(kw));
-        
-        if (tone === 'AGGRESSIVE' || hasBadKeyword) {
-          branchKey = 'ESCALATE';
-        } else if (hasGoodKeyword && tone !== 'AGGRESSIVE') {
-          branchKey = 'STRONG';
-        }
-        
-        const result = turnData.branches[branchKey];
-        playBeep(result.outcome === 'cooling' ? 'success' : 'neutral');
-        
-        // Store the result for the feedback card
-        finalOutcome = {
-            playerText,
-            tone,
-            outcome: result.outcome,
-            turn: currentTurn
-        };
-        
-        // Update subtitle with NPC reaction
-        subtitleTextEl.setAttribute('value', `NPC Reacts: ${result.npc_react}`);
-
-        // Advance or end the game
-        setTimeout(() => {
-          currentTurn++;
-          if (currentTurn > 2 || result.outcome === 'cooling') {
-            endScenario();
-          } else {
-            startTurn(currentTurn);
-          }
-        }, 4000); // 4-second delay to read the reaction
-      }
-
-      /**
-       * Ends the scenario and displays the feedback card.
-       */
-      function endScenario() {
-        gameActive = false;
-        mainPanelEl.setAttribute('visible', 'false');
-        feedbackCardEl.setAttribute('visible', 'true');
-        populateFeedbackCard();
-      }
-
-      /**
-       * Fills the feedback card with personalized advice based on the final outcome.
-       */
-      function populateFeedbackCard() {
-          const card = {
-            line1: `Your response: "${finalOutcome.playerText}"`,
-            line2: `Detected tone: ${finalOutcome.tone}`,
-            good: '',
-            suggestion: ''
-          };
-          
-          if (finalOutcome.outcome === 'cooling') {
-              card.good = '✔️ Well done! You chose a strong, assertive response that de-escalated the situation effectively.';
-              card.suggestion = '💡 To improve further, remember to also check on the person who was targeted after the situation is calm.';
-          } else {
-              card.good = '✔️ Good job for trying to intervene. Taking action is the first and most important step.';
-              card.suggestion = `💡 Your approach led to a stall. Next time, try being more direct with a clear command like "Stop that." or by delegating to an authority figure like the bus driver.`;
-          }
-
-          document.querySelector('#feedback-line-1').setAttribute('value', card.line1);
-          document.querySelector('#feedback-line-2').setAttribute('value', card.line2);
-          document.querySelector('#feedback-good').setAttribute('value', card.good);
-          document.querySelector('#feedback-suggestion').setAttribute('value', card.suggestion);
-      }
-
-
-      // --- 5. AUDIO & VOICE PROCESSING ---
-
-      /**
-       * Sets up the microphone using getUserMedia and creates an AudioContext.
-       */
-      function setupMic() {
-        const micButton = document.querySelector('#enableMicButton');
-        const micStatus = document.querySelector('#micStatus');
-
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => {
-              isMicEnabled = true;
-              microphoneStream = stream;
-              audioContext = new (window.AudioContext || window.webkitAudioContext)();
-              analyser = audioContext.createAnalyser();
-              analyser.fftSize = 2048;
-              const source = audioContext.createMediaStreamSource(microphoneStream);
-              source.connect(analyser);
-              dataArray = new Uint8Array(analyser.frequencyBinCount);
-              
-              micButton.textContent = 'Mic Enabled';
-              micButton.disabled = true;
-              micStatus.textContent = 'Mic is active. Use the "Speak Now" button in VR.';
-              playBeep('success');
-            })
-            .catch(err => {
-              console.error('Mic permission denied:', err);
-              micStatus.textContent = 'Mic access was denied.';
-              micButton.disabled = false;
-            });
+      function showNextLine() {
+        if (lineIndex < scriptedLines.length) {
+          const seg = scriptedLines[lineIndex++];
+          T('#youSaid', `${seg.who}:`);
+          T('#subtitle', seg.line);
         } else {
-          micStatus.textContent = 'Mic access not supported by this browser.';
+          // show choices cue
+          T('#youSaid', "Teacher (you):");
+          T('#subtitle', "Choose how you respond to the situation.");
+          showingChoices = true;
         }
       }
 
-      /**
-       * Analyzes the microphone input for 1 second to determine tone.
-       * @returns {Promise<string>} A promise that resolves with the tone bucket ('CALM', 'ASSERTIVE', 'AGGRESSIVE').
-       */
-      function analyzeTone() {
-        return new Promise(resolve => {
-          if (!isMicEnabled) {
-            resolve('ASSERTIVE'); // Default if mic is off
-            return;
-          }
-
-          let rmsSum = 0;
-          let zeroCrossings = 0;
-          let samples = 0;
-          const duration = 1000; // 1 second analysis
-          const startTime = performance.now();
-
-          function sample() {
-            if (performance.now() - startTime > duration) {
-              const avgRms = rmsSum / samples;
-              
-              // Pace proxy: High zero crossings can indicate agitated speech
-              const paceProxy = zeroCrossings / samples;
-
-              console.log(`Analysis complete: Avg RMS=${avgRms.toFixed(3)}, Pace Proxy=${paceProxy.toFixed(3)}`);
-              
-              // Determine tone bucket
-              if (avgRms > 0.06 || paceProxy > 0.1) { // Note: RMS values are very sensitive. Scaled down.
-                resolve('AGGRESSIVE');
-              } else if (avgRms >= 0.025) {
-                resolve('ASSERTIVE');
-              } else {
-                resolve('CALM');
-              }
-              return;
-            }
-
-            analyser.getByteTimeDomainData(dataArray);
-            let sumSquares = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-              const val = (dataArray[i] / 128.0) - 1.0; // Normalize to -1 to 1
-              sumSquares += val * val;
-            }
-            rmsSum += Math.sqrt(sumSquares / dataArray.length);
-
-            // Zero-crossing for pace proxy
-            for (let i = 1; i < dataArray.length; i++) {
-                if ((dataArray[i-1] - 128) * (dataArray[i] - 128) < 0) {
-                    zeroCrossings++;
-                }
-            }
-
-            samples++;
-            requestAnimationFrame(sample);
-          }
-          sample();
-        });
-      }
-
-      /**
-       * Starts the speech recognition process.
-       */
-      function startSpeechRecognition() {
-        return new Promise((resolve, reject) => {
-          if (!recognition) {
-            reject('Speech recognition not available.');
-            return;
-          }
-          
-          transcriptTextEl.setAttribute('value', 'Listening...');
-          
-          recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            resolve(transcript);
-          };
-
-          recognition.onerror = (event) => {
-            reject(`Speech recognition error: ${event.error}`);
-          };
-          
-          recognition.onend = () => {
-             // Recognition has ended
-          };
-
-          recognition.start();
-        });
-      }
-
-      /**
-       * Generates a simple tone using the Web Audio API.
-       * @param {'success'|'error'|'neutral'} type - The type of beep to play.
-       */
-      function playBeep(type = 'neutral') {
-        if (!audioContext) return;
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-        
-        switch(type) {
-            case 'success':
-                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-                break;
-            case 'error':
-                oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
-                break;
-            default:
-                oscillator.frequency.setValueAtTime(520, audioContext.currentTime);
+      // Auto-advance the 4 lines every ~6s (~24s total), then present choices
+      showNextLine();
+      const lineTimer = setInterval(() => {
+        if (!showingChoices) {
+          showNextLine();
+        } else {
+          clearInterval(lineTimer);
         }
+      }, 6000);
 
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.15);
-      }
-
-
-      // --- 6. EVENT HANDLERS & INITIALIZATION ---
-
-      /**
-       * Central handler for click events on all '.clickable' entities.
-       */
-      function handleInteraction(event) {
-        if (!gameActive && !['btn-replay', 'btn-save-card'].includes(event.currentTarget.id)) return;
-
-        playBeep('neutral');
-        const targetId = event.currentTarget.id;
-
-        switch(targetId) {
-          case 'btn-direct':
-            processPlayerChoice("I'll use a direct approach.", 'ASSERTIVE');
-            break;
-          case 'btn-distract':
-            processPlayerChoice("I'll create a distraction.", 'ASSERTIVE');
-            break;
-          case 'btn-delegate':
-            processPlayerChoice("I'll find someone to delegate to.", 'ASSERTIVE');
-            break;
-          case 'btn-speak':
-            handleSpeakNow();
-            break;
-          case 'btn-replay':
-            startScenario();
-            break;
-          case 'btn-save-card':
-            saveFeedbackCardAsPNG();
-            break;
-        }
-      }
-
-      /**
-       * Handles the "Speak Now" button press, coordinating tone and speech analysis.
-       */
-      async function handleSpeakNow() {
-        if (!isMicEnabled) {
-          transcriptTextEl.setAttribute('value', 'Mic not enabled. Use the 2D button on screen.');
-          playBeep('error');
-          return;
-        }
-
-        subtitleTextEl.setAttribute('value', 'Speak your response now...');
-        const tonePromise = analyzeTone();
-        const transcriptPromise = recognition ? startSpeechRecognition() : Promise.resolve("Voice not supported, button fallback.");
-
-        try {
-            const [tone, transcript] = await Promise.all([tonePromise, transcriptPromise]);
-            processPlayerChoice(transcript, tone);
-        } catch (error) {
-            console.error(error);
-            subtitleTextEl.setAttribute('value', 'Could not process audio. Please use buttons.');
-            playBeep('error');
-            // If speech fails, fall back to a neutral button press
-            setTimeout(() => processPlayerChoice("I hesitated.", "CALM"), 2000);
-        }
-      }
-
-      /**
-       * Draws the feedback card content onto a 2D canvas and triggers a download.
-       */
-      function saveFeedbackCardAsPNG() {
-        const canvas = document.getElementById('feedbackCanvas');
-        const ctx = canvas.getContext('2d');
-
-        // Set canvas size
-        canvas.width = 600;
-        canvas.height = 400;
-
-        // Background
-        ctx.fillStyle = '#37474F';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Title
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 28px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Bystander Coach Feedback', canvas.width / 2, 50);
-        
-        // Get text from A-Frame entities
-        const line1 = document.querySelector('#feedback-line-1').getAttribute('value');
-        const line2 = document.querySelector('#feedback-line-2').getAttribute('value');
-        const good = document.querySelector('#feedback-good').getAttribute('value');
-        const suggestion = document.querySelector('#feedback-suggestion').getAttribute('value');
-
-        // Draw text
-        ctx.font = '16px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillStyle = '#CFD8DC';
-        ctx.fillText(line1.text || line1, 30, 100);
-        ctx.fillText(line2.text || line2, 30, 130);
-        
-        ctx.fillStyle = '#A5D6A7';
-        wrapText(ctx, good.text || good, 30, 180, 540, 20);
-        
-        ctx.fillStyle = '#FFCC80';
-        wrapText(ctx, suggestion.text || suggestion, 30, 260, 540, 20);
-
-        // Trigger download
-        const link = document.createElement('a');
-        link.download = 'BystanderCoach-Feedback.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-        playBeep('success');
-      }
-
-      /**
-       * Helper function to wrap text on a 2D canvas.
-      */
-      function wrapText(context, text, x, y, maxWidth, lineHeight) {
-        const words = text.split(' ');
-        let line = '';
-        for(let n = 0; n < words.length; n++) {
-          const testLine = line + words[n] + ' ';
-          const metrics = context.measureText(testLine);
-          const testWidth = metrics.width;
-          if (testWidth > maxWidth && n > 0) {
-            context.fillText(line, x, y);
-            line = words[n] + ' ';
-            y += lineHeight;
-          } else {
-            line = testLine;
-          }
-        }
-        context.fillText(line, x, y);
-      }
-      
-      // --- SET UP EVENT LISTENERS ---
-      // Add click listeners to all clickable entities
-      document.querySelectorAll('.clickable').forEach(el => {
-        el.addEventListener('click', handleInteraction);
-
-        // Hover feedback listeners
-        el.addEventListener('raycaster-intersection', (evt) => {
-          hoverDotEl.setAttribute('visible', true);
-          const intersectionPoint = evt.detail.intersection.point;
-          hoverDotEl.setAttribute('position', intersectionPoint);
-        });
-        el.addEventListener('raycaster-intersection-cleared', () => {
-          hoverDotEl.setAttribute('visible', false);
+      // Click handling for options
+      choices.forEach(c => {
+        const el = document.getElementById(c.id);
+        el.addEventListener('click', () => {
+          if (!showingChoices) return;
+          presentOutcome(c.outcome.title, c.outcome.body);
         });
       });
-      
-      // 2D UI listener
-      document.querySelector('#enableMicButton').addEventListener('click', setupMic);
 
-      // --- START THE APP ---
-      startScenario();
-    });
-  </script>
+      function presentOutcome(title, body) {
+        // Show outcome card
+        feedbackCard.setAttribute('visible', true);
+        feedbackCard.setAttribute('animation__in', {
+          property: 'scale', to: '1 1 1', dur: 280, easing: 'easeOutCubic'
+        });
+        T('#cardTitle', title);
+        T('#cardBody', body + "\n\n(Next: narration)");
+        // Queue the two narration blocks (~45s, then another ~45s)
+        setTimeout(() => showNarration(0), 2200);
+      }
+
+      function showNarration(idx) {
+        if (idx >= narrationBlocks.length) return;
+        const n = narrationBlocks[idx];
+        T('#cardTitle', n.title);
+        T('#cardBody', n.body + (idx < narrationBlocks.length - 1 ? "\n\n(Continuing…)" : ""));
+        // Advance after ~45s to the next narration block
+        setTimeout(() => showNarration(idx + 1), 45000);
+      }
+
+      btnReplay.addEventListener('click', () => {
+        // Reset state
+        feedbackCard.setAttribute('animation__out', {
+          property: 'scale', to: '0 0 0', dur: 220, easing: 'easeInCubic'
+        });
+        setTimeout(() => {
+          feedbackCard.setAttribute('visible', false);
+          lineIndex = 0;
+          showingChoices = false;
+          T('#youSaid', '');
+          T('#subtitle', '');
+          showNextLine();
+          const t = setInterval(() => {
+            if (!showingChoices) showNextLine();
+            else clearInterval(t);
+          }, 6000);
+        }, 240);
+      });
+
+      // Basic hover dot feedback for rays
+      const hoverDot = document.getElementById('hoverDot');
+      ['opt1','opt2','opt3','btnReplay'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('mouseenter', evt => {
+          const p = el.object3D.getWorldPosition(new THREE.Vector3());
+          hoverDot.setAttribute('position', `${p.x} ${p.y} ${p.z + 0.02}`);
+          hoverDot.setAttribute('visible', true);
+        });
+        el.addEventListener('mouseleave', () => hoverDot.setAttribute('visible', false));
+      });
+
+      // Mic UI (stubbed)
+      document.getElementById('micPermission').addEventListener('click', () => {
+        document.getElementById('micStatus').textContent = 'Microphone: (demo) Enabled';
+        document.getElementById('speakNow').disabled = false;
+      });
+      document.getElementById('speakNow').addEventListener('click', () => {
+        T('#youSaid', "You (voice):");
+        T('#subtitle', "(Voice demo) — use on-panel choices for now.");
+      });
+    </script>
+  </a-scene>
 </body>
 </html>

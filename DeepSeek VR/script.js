@@ -6,7 +6,7 @@
 const SCENARIO = {
   rounds: [
     {
-      name: 'Round 1 — Set a boundary',
+      name: 'Situation 1: Museum Fiasco',
       npc_line: "Hey, move. That’s my seat — now.",
       options: [
         { label: "Direct boundary: “That’s not okay. Please stop.”", tag: "DIRECT",   effect: "DEESCALATE",
@@ -104,7 +104,9 @@ const micBtn = $('#micPermission');
 const speakBtn = $('#speakNow');
 const micStatus = $('#micStatus');
 
-const npcAgg = $('#npcAggressor');
+const npcAggA = $('#StudentA');
+const npcAggB = $('#StudentB');
+const npcAggC = $('#StudentC');
 const npcDrv = $('#npcDriver');
 const hoverDot = $('#hoverDot');
 

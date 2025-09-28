@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   />
-  <title>Bystander Coach — VR (Reactive NPC)</title>
+  <title>SteadyStateVR</title>
 
   <!-- A-Frame core -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -22,7 +22,7 @@
 <body>
   <!-- HUD -->
   <div id="loadingScreen">
-    <div>Loading Bystander Coach</div>
+    <div>Loading SteadyStateVR</div>
     <div class="pulse">Please wait…</div>
   </div>
 
@@ -46,8 +46,14 @@
     loading-screen="enabled: false"
     vr-mode-ui="enabled: true"
   >
+    <!-- scene background -->
+    <a-assets>
+      <img id="museum" src="dinosaur.png">
+    </a-assets>
+    <a-sky src="#museum"></a-sky>
+
     <!-- Camera rig + cursor + controller rays -->
-    <a-entity id="rig" position="0 1.6 2.2">
+    <a-entity id="rig" position="0 2.2 3.3">
       <a-entity id="camera" camera look-controls wasd-controls="acceleration: 10">
         <a-entity
           id="gazeCursor"
@@ -69,17 +75,32 @@
 
     <!-- NPCs (expressive aggressor + driver/authority) -->
     <!-- Move aggressor LEFT and farther so it never overlaps the UI panel -->
-    <a-entity id="npcAggressor"
-      gltf-model="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/RobotExpressive/glTF-Binary/RobotExpressive.glb"
+    <a-entity id="StudentA"
+      gltf-model="url(models/StudentA.glb)"
       position="-0.8 0 -2.2" rotation="0 165 0" scale="0.78 0.78 0.78"
       animation-mixer="clip: Idle; loop: repeat"
       look-at="#camera">
     </a-entity>
 
+    <a-entity id="StudentB"
+      gltf-model="url(models/StudentB.glb)"
+      position="-1.4 0 -2.2" rotation="0 165 0" scale="0.78 0.78 0.78"
+      animation-mixer="clip: Idle; loop: repeat"
+      look-at="#camera">
+    </a-entity>
+
+    <a-entity id="StudentC"
+      gltf-model="url(models/StudentC.glb)"
+      position="1.4 0 -2.2" rotation="0 165 0" scale="0.78 0.78 0.78"
+      animation-mixer="clip: Idle; loop: repeat"
+      look-at="#camera">
+    </a-entity>
+
+
     <!-- Driver stands to the RIGHT, farther back -->
     <a-entity id="npcDriver"
       gltf-model="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb"
-      position="1.4 0 -3.0" rotation="0 150 0" scale="0.95 0.95 0.95"
+      position="2.0 0 -3.0" rotation="0 150 0" scale="0.95 0.95 0.95"
       animation-mixer="clip: idle; loop: repeat"
       look-at="#camera">
     </a-entity>
