@@ -6,14 +6,14 @@
 const SCENARIO = {
   rounds: [
     {
-      name: 'Situation 1: Museum Fiasco',
-      npc_line: "Hey, move. That’s my seat — now.",
+      name: 'Situation 1: Museum Arguments',
+      npc_line: "An elementary school class is on a field trip at the local history museum. A student becomes frustrated because other students in the class were able to see exhibits that they weren’t able to. Others begin to tease the student over this, and they become agitated. As the teacher, you should say:",
       options: [
-        { label: "Direct boundary: “That’s not okay. Please stop.”", tag: "DIRECT",   effect: "DEESCALATE",
+        { label: "Alright, let’s step aside for a moment to talk. That sounds so frustrating, let’s make sure you don’t miss out again.", tag: "DIRECT",   effect: "DEESCALATE",
           good: ["that's not okay","please stop","not okay","stop"], bad: [] },
-        { label: "Distract politely: “Hey—does this bus stop at North Ave?”", tag: "DISTRACT", effect: "NEUTRAL",
+        { label: "Ignore the situation", tag: "DISTRACT", effect: "NEUTRAL",
           good: ["north ave","next stop","what stop"], bad: [] },
-        { label: "Insult back (don’t do this): “Shut up and sit somewhere else.”", tag: "INSULT",   effect: "ESCALATE",
+        { label: "Ok, that’s enough! You need to stop shouting and behave right now! We have a tour to get through.", tag: "INSULT",   effect: "ESCALATE",
           good: [], bad: ["shut up","idiot","stupid","moron","freak"] }
       ],
       replies: {
@@ -23,14 +23,14 @@ const SCENARIO = {
       }
     },
     {
-      name: 'Round 2 — Hold ground / route to help',
-      npc_line: "Why do you care? They can speak for themselves.",
+      name: 'Situation 2: Museum Food Fiasco',
+      npc_line: "Some students have broken off of the group to go have their lunch outside on the steps of the museum. Another student attempts to join them, but is immediately shunned away. How should you intervene?",
       options: [
-        { label: "Delegate to authority: “Driver, could you help here?”", tag: "DELEGATE", effect: "DEESCALATE",
+        { label: "Let's make sure we're being inclusive of everyone and making sure everyone is enjoying their experience!", tag: "DELEGATE", effect: "DEESCALATE",
           good: ["driver","can you help","assist"], bad: [] },
-        { label: "Support + de-escalate: “We’re just riding; let them be.”", tag: "DEESC", effect: "DEESCALATE",
+        { label: "Have you considered trying to sit somewhere else?", tag: "DEESC", effect: "DEESCALATE",
           good: ["let them be","we're just riding"], bad: [] },
-        { label: "Lecture / label them (don’t): “People like you are the problem.”", tag: "LECTURE", effect: "ESCALATE",
+        { label: "Leave the other group alone, they might not want to sit with you.", tag: "LECTURE", effect: "ESCALATE",
           good: [], bad: ["people like you","you are the problem","learn to","shut"] }
       ],
       replies: {
@@ -40,14 +40,14 @@ const SCENARIO = {
       }
     },
     {
-      name: 'Round 3 — Exit or support target',
-      npc_line: "Tss.",
+      name: 'Situation 3: Mueseum Gift Shop Gimmicks',
+      npc_line: "The students have ended their field trip with a stop in the gift shop. As you enter, you see a group of kids making fun of a student because they don't have money to get a souvenir. What do you say?",
       options: [
-        { label: "Move group: “Let’s grab those seats over there.”", tag: "MOVE", effect: "DEESCALATE",
+        { label: "Remember that we must be considerate of other student's situations. There's always something you don't know!", tag: "MOVE", effect: "DEESCALATE",
           good: ["over there","grab seats","sit over there"], bad: [] },
-        { label: "Check on target & relocate: “Are you okay if we move seats?”", tag: "SUPPORT", effect: "DEESCALATE",
+        { label: "Let's go everybody! We have a bus to catch so leave everything behind in the gift shop!", tag: "SUPPORT", effect: "DEESCALATE",
           good: ["are you okay","move seats","we're here"], bad: [] },
-        { label: "Keep arguing (don’t): “Say that again and see what happens.”", tag: "THREAT", effect: "ESCALATE",
+        { label: "Not every student came with money for the gift shop today!", tag: "THREAT", effect: "ESCALATE",
           good: [], bad: ["see what happens","or else","fight","hit","punch"] }
       ],
       replies: {
@@ -107,7 +107,6 @@ const micStatus = $('#micStatus');
 const npcAggA = $('#StudentA');
 const npcAggB = $('#StudentB');
 const npcAggC = $('#StudentC');
-const npcDrv = $('#npcDriver');
 const hoverDot = $('#hoverDot');
 
 const opt1 = $('#opt1'), opt2 = $('#opt2'), opt3 = $('#opt3');
